@@ -231,7 +231,8 @@ public class FirebaseRealtimeDBManager {
                         
                         
                         // finalMap.put("ダ", damap);
-                        insertData("raceStatistics" + "/" + kaisaijo + "/" + "ダ", (Object) damap);
+                        // insertData("raceStatistics" + "/" + kaisaijo + "/" + "ダ", (Object) damap);
+                        insertData("raceStatistics" + "/" + kaisaijo + "/" + "芝", (Object) map);
                     }
 
                     @Override

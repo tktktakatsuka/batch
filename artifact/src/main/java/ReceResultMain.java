@@ -1,5 +1,4 @@
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -14,20 +13,10 @@ public class ReceResultMain {
         // DB接続
 
         manager = new FirebaseRealtimeDBManager();
-        List<String> joList = new ArrayList<>();
-        joList.add("東京");
-        joList.add("京都");
-        joList.add("小倉");
-        // joList.add("新潟");
-        // joList.add("中山");
-        // joList.add("中京");
+        List<String> joList = Config.TARGET_JO_LIST;
 
-        // joList.add("福島");
         for (String joName : joList) {
-            // List<String> dateList = WeekendDays.getPastWeekendsInCurrentMonth();
-            List<String> dateList = new ArrayList<>();
-            dateList.add("20250209");
-
+            List<String> dateList = Config.TARGET_DATE_LIST;
             for (String date : dateList) {
                 new ReceResultMain().scrapingAndInsert(manager, date, joName);
             }
@@ -64,8 +53,17 @@ public class ReceResultMain {
                     case "中京":
                         jocode = "7";
                         break;
+                    case "阪神":
+                        jocode = "9";
+                        break;
                     case "小倉":
                         jocode = "10";
+                        break;
+                    case "函館":
+                        jocode = "2";
+                        break;
+                    case "札幌":
+                        jocode = "1";
                         break;
                 }
                 // Webページを取得

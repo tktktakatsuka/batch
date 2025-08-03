@@ -1,0 +1,44 @@
+{
+  "racecourses": {
+    "sapporo": {
+      "name": "札幌",
+      "isActive": true
+    },
+    "hakodate": {
+      "name": "函館",
+      "isActive": false
+    },
+    "fukushima": {
+      "name": "福島",
+      "isActive": false
+    },
+    "niigata": {
+      "name": "新潟",
+      "isActive": true
+    },
+    "tokyo": {
+      "name": "東京",
+      "isActive": false
+    },
+    "nakayama": {
+      "name": "中山",
+      "isActive": false
+    },
+    "chukyo": {
+      "name": "中京",
+      "isActive": false
+    },
+    "kyoto": {
+      "name": "京都",
+      "isActive": true
+    },
+    "hanshin": {
+      "name": "阪神",
+      "isActive": false
+    },
+    "kokura": {
+      "name": "小倉",
+      "isActive": true
+    }
+  }
+}

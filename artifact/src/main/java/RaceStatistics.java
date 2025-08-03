@@ -14,12 +14,12 @@ public class RaceStatistics {
     public static void main(String[] args) {
         // String placeName = "Toyoake";
         // String placeName = "Funabashi";
-        String placeName = "Kyoto";
-        // String placeName = "Tokyo";        
+        // String placeName = "Kyoto";
+        String placeName = "Tokyo";        
         // String placeName = "Kitakyushu";
 
         // DB処理 データをインサート
-        new FirebaseRealtimeDBManager().getRaceTrendsKyakusitu("20250209", "", "東京");
+        new FirebaseRealtimeDBManager().getRaceTrendsKyakusitu("20250208", "", "東京");
 
     }
 
