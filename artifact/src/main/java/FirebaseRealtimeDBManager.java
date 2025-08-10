@@ -4,7 +4,7 @@ import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.database.*;
 
-import javafx.scene.control.CheckBox;
+// import javafx.scene.control.CheckBox;
 
 import java.io.FileInputStream;
 import java.io.IOException;
