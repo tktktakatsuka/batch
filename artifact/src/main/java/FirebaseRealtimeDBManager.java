@@ -53,34 +53,6 @@ public class FirebaseRealtimeDBManager {
         }
     }
 
-    public Map<String, Object> setData(String kaisaibi, String kaisaijo, String raceNo, String tyaku,
-            String waku, String horseNumber, String horseName, String age, String weight,
-            String jockey, String popular, String winOdds, String time, String tyakusa,
-            String tuukazyun, String nobori, String tyoukyousi, String horseWeight, String raceTitle,
-            String hassouTime) {
-        Map<String, Object> raceData = new HashMap<>();
-        raceData.put("kaisaibi", kaisaibi);
-        raceData.put("kaisaijo", kaisaijo);
-        raceData.put("raceNo", raceNo);
-        raceData.put("tyaku", tyaku);
-        raceData.put("waku", waku);
-        raceData.put("horseNumber", horseNumber);
-        raceData.put("horseName", horseName);
-        raceData.put("age", age);
-        raceData.put("weight", weight);
-        raceData.put("jockey", jockey);
-        raceData.put("popular", popular);
-        raceData.put("winOdds", winOdds);
-        raceData.put("time", time);
-        raceData.put("tyakusa", tyakusa);
-        raceData.put("tuukazyun", tuukazyun);
-        raceData.put("nobori", nobori);
-        raceData.put("tyoukyousi", tyoukyousi);
-        raceData.put("horseWeight", horseWeight);
-        raceData.put("raceTitle", raceTitle);
-        raceData.put("hassouTime", hassouTime);
-        return raceData;
-    }
 
     // データを取得するメソッド
     public void getRaceResults(String raceId) {
@@ -115,7 +87,6 @@ public class FirebaseRealtimeDBManager {
     }
 
     public void getRaceTrendsKyakusitu(String kaisaibi, String raceNo, String kaisaijo) {
-
         FirebaseRealtimeDBManager.queryData("raceTrends" + "/" + kaisaijo, "kaisaibi", kaisaibi,
                 new ValueEventListener() {
                     @Override
@@ -242,4 +213,44 @@ public class FirebaseRealtimeDBManager {
                 });
     }
 
+    
+    public Map<String, Object> setData(String kaisaibi, String kaisaijo, String raceNo, String tyaku,
+            String waku, String horseNumber, String horseName, String age, String weight,
+            String jockey, String popular, String winOdds, String time, String tyakusa,
+            String tuukazyun, String nobori, String tyoukyousi, String horseWeight, String raceTitle,
+            String hassouTime) {
+        Map<String, Object> raceData = new HashMap<>();
+        raceData.put("kaisaibi", kaisaibi);
+        raceData.put("kaisaijo", kaisaijo);
+        raceData.put("raceNo", raceNo);
+        raceData.put("tyaku", tyaku);
+        raceData.put("waku", waku);
+        raceData.put("horseNumber", horseNumber);
+        raceData.put("horseName", horseName);
+        raceData.put("age", age);
+        raceData.put("weight", weight);
+        raceData.put("jockey", jockey);
+        raceData.put("popular", popular);
+        raceData.put("winOdds", winOdds);
+        raceData.put("time", time);
+        raceData.put("tyakusa", tyakusa);
+        raceData.put("tuukazyun", tuukazyun);
+        raceData.put("nobori", nobori);
+        raceData.put("tyoukyousi", tyoukyousi);
+        raceData.put("horseWeight", horseWeight);
+        raceData.put("raceTitle", raceTitle);
+        raceData.put("hassouTime", hassouTime);
+        return raceData;
+    }
+
+    
+    public Map<String, Object> setHassouData(String kaisaibi, String raceNo, String raceTitle, String hassouTime, String kaisaijo) {
+        Map<String, Object> hassouData = new HashMap<>();
+        hassouData.put("kaisaibi", kaisaibi);
+        hassouData.put("raceNo", raceNo);
+        hassouData.put("raceTitle", raceTitle);
+        hassouData.put("hassouTime", hassouTime);
+        hassouData.put("kaisaijo", kaisaijo);
+        return hassouData;
+    }
 }
