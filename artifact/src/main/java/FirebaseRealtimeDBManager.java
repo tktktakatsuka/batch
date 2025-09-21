@@ -10,6 +10,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 public class FirebaseRealtimeDBManager {
 
@@ -52,7 +53,6 @@ public class FirebaseRealtimeDBManager {
             System.err.println("Error inserting data: " + e.getMessage());
         }
     }
-
 
     // データを取得するメソッド
     public void getRaceResults(String raceId) {
@@ -199,8 +199,6 @@ public class FirebaseRealtimeDBManager {
                         damap.put("sasi", String.valueOf(dasasiKyakusituCounter));
                         damap.put("oikomi", String.valueOf(daoikomiKyakusituCounter));
 
-                        
-                        
                         // finalMap.put("ダ", damap);
                         // insertData("raceStatistics" + "/" + kaisaijo + "/" + "ダ", (Object) damap);
                         insertData("raceStatistics" + "/" + kaisaijo + "/" + "芝", (Object) map);
@@ -213,7 +211,6 @@ public class FirebaseRealtimeDBManager {
                 });
     }
 
-    
     public Map<String, Object> setData(String kaisaibi, String kaisaijo, String raceNo, String tyaku,
             String waku, String horseNumber, String horseName, String age, String weight,
             String jockey, String popular, String winOdds, String time, String tyakusa,
@@ -243,8 +240,8 @@ public class FirebaseRealtimeDBManager {
         return raceData;
     }
 
-    
-    public Map<String, Object> setHassouData(String kaisaibi, String raceNo, String raceTitle, String hassouTime, String kaisaijo) {
+    public Map<String, Object> setHassouData(String kaisaibi, String raceNo, String raceTitle, String hassouTime,
+            String kaisaijo) {
         Map<String, Object> hassouData = new HashMap<>();
         hassouData.put("kaisaibi", kaisaibi);
         hassouData.put("raceNo", raceNo);
@@ -253,4 +250,44 @@ public class FirebaseRealtimeDBManager {
         hassouData.put("kaisaijo", kaisaijo);
         return hassouData;
     }
+
+    public static void deleteDataByDate(String path, String targetDate) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+
+        database.child(path).addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot snapshot) {
+                if (!snapshot.exists()) {
+                    System.out.println("指定パスにデータが存在しません: " + path);
+                    latch.countDown();
+                    return;
+                }
+
+                for (DataSnapshot child : snapshot.getChildren()) {
+                    // 日付キー名を Firebase に合わせる ("date" または "kaisaibi")
+                    String childDate = child.child("date").getValue(String.class);
+                    if (childDate != null && childDate.equals(targetDate)) {
+                        child.getRef().removeValue((error, ref) -> {
+                            if (error == null) {
+                                System.out.println("削除成功: " + ref.getKey());
+                            } else {
+                                System.err.println("削除失敗: " + error.getMessage());
+                            }
+                        });
+                    }
+                }
+                latch.countDown();
+            }
+
+            @Override
+            public void onCancelled(DatabaseError error) {
+                System.err.println("削除クエリキャンセル: " + error.getMessage());
+                latch.countDown();
+            }
+        });
+
+        latch.await(); // 削除完了まで待機
+        System.out.println("削除処理終了");
+    }
+
 }

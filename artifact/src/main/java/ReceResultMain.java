@@ -1,7 +1,16 @@
 import java.io.IOException;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.Map;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+
+import org.jsoup.Connection;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
@@ -9,7 +18,7 @@ import org.jsoup.select.Elements;
 public class ReceResultMain {
     private static FirebaseRealtimeDBManager manager;
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) throws InterruptedException, NoSuchAlgorithmException, KeyManagementException {
         // DB接続
 
         manager = new FirebaseRealtimeDBManager();
@@ -23,14 +32,19 @@ public class ReceResultMain {
         }
     }
 
+    
+    
+
     /**
      * @param dbManager
      * @param date
      * @param kaisaijo
      * @throws InterruptedException
+     * @throws NoSuchAlgorithmException 
+     * @throws KeyManagementException 
      */
     private void scrapingAndInsert(FirebaseRealtimeDBManager dbManager, String date, String kaisaijo)
-            throws InterruptedException {
+            throws InterruptedException, NoSuchAlgorithmException, KeyManagementException {
         try {
             for (int raceSuu = 1; raceSuu < 13; raceSuu++) {
                 String jocode = "";
@@ -78,10 +92,22 @@ public class ReceResultMain {
                     url2 = "https://www.keibalab.jp/db/race/" + date + jocode + raceSuu + "/";
                 }
 
+        // SSLContext を作成
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(null, new TrustManager[]{ new X509TrustManager() {
+            public void checkClientTrusted(X509Certificate[] certs, String authType) {}
+            public void checkServerTrusted(X509Certificate[] certs, String authType) {}
+            public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+        }}, new SecureRandom());
+
                 if (raceSuu < 10) {
-                    doc = Jsoup.connect(url1).get();
+                    doc = ((Connection) Jsoup.connect(url1)).sslSocketFactory(sslContext.getSocketFactory())
+                            .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36")
+                            .get();
                 } else {
-                    doc = Jsoup.connect(url2).get();
+                    doc = ((Connection) Jsoup.connect(url2)).sslSocketFactory(sslContext.getSocketFactory())
+                            .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36")
+                            .get();
                 }
 
                 if (doc != null) {

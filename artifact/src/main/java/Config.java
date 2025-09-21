@@ -2,8 +2,8 @@ import java.util.Arrays;
 import java.util.List;
 
 public class Config {
-    public static final List<String> TARGET_JO_LIST = Arrays.asList("新潟", "中京", "札幌");
-    public static final List<String> TARGET_DATE_LIST = Arrays.asList("20250824");
+    public static final List<String> TARGET_JO_LIST = Arrays.asList("阪神", "中山");
+    public static final List<String> TARGET_DATE_LIST = Arrays.asList("20250920");
 
         // joList.add("新潟");
         // joList.add("中京");
