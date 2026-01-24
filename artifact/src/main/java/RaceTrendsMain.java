@@ -25,10 +25,10 @@ public class RaceTrendsMain {
 
         for (String joName : joList) {
             // List<String> dateList = WeekendDays.getPastWeekendsInCurrentMonth();
-            List<String> dateList = Config.TARGET_DATE_LIST;
-            for (String date : dateList) {
-                new RaceTrendsMain().scrapingAndInsert(manager, date, joName);
-            }
+            String date = Config.TARGET_DATE_LIST;
+
+            new RaceTrendsMain().scrapingAndInsert(manager, date, joName);
+
         }
     }
 

@@ -25,10 +25,8 @@ public class ReceResultMain {
         List<String> joList = Config.TARGET_JO_LIST;
 
         for (String joName : joList) {
-            List<String> dateList = Config.TARGET_DATE_LIST;
-            for (String date : dateList) {
-                new ReceResultMain().scrapingAndInsert(manager, date, joName);
-            }
+            String date = Config.TARGET_DATE_LIST;
+            new ReceResultMain().scrapingAndInsert(manager, date, joName);
         }
     }
 

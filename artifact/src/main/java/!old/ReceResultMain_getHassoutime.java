@@ -1,5 +1,4 @@
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,10 +17,8 @@ public class ReceResultMain_getHassoutime {
         List<String> joList = Config.TARGET_JO_LIST;
 
         for (String joName : joList) {
-            List<String> dateList = Config.TARGET_DATE_LIST;
-            for (String date : dateList) {
-                new ReceResultMain_getHassoutime().scrapingAndInsert(manager, date, joName);
-            }
+            String date = Config.TARGET_DATE_LIST;
+            new ReceResultMain_getHassoutime().scrapingAndInsert(manager, date, joName);
         }
     }
 
@@ -103,7 +100,7 @@ public class ReceResultMain_getHassoutime {
                     hassouTimeMap.put("kaisaijo", kaisaijo);
                     // データをFirebaseに挿入
                     FirebaseRealtimeDBManager.insertData("raceHassouTimeList" + "/" + kaisaijo + "/", hassouTimeMap);
-                    System.out.println("Inserted data for " + kaisaijo + " on " );
+                    System.out.println("Inserted data for " + kaisaijo + " on ");
                 }
             }
         } catch (IOException e) {
