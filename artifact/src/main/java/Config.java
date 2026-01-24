@@ -1,9 +1,11 @@
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 
 public class Config {
-    public static final List<String> TARGET_JO_LIST = Arrays.asList("阪神", "中山");
-    public static final List<String> TARGET_DATE_LIST = Arrays.asList("20250920");
+    public static final List<String> TARGET_JO_LIST = Arrays.asList("中山", "京都","小倉");
+    public static final String TARGET_DATE_LIST =  LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
 
         // joList.add("新潟");
         // joList.add("中京");
