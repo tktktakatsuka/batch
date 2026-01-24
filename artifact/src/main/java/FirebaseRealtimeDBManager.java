@@ -19,15 +19,18 @@ public class FirebaseRealtimeDBManager {
     // Firebase初期化
     public FirebaseRealtimeDBManager() {
         try {
-            FileInputStream serviceAccount = new FileInputStream(
-                    "C:\\work\\batch\\artifact\\raceresult-c4af3-firebase-adminsdk-fmu17-0a792a675c.json");
+            // ★ すでに初期化済みなら再初期化しない
+            if (FirebaseApp.getApps().isEmpty()) {
+                FileInputStream serviceAccount = new FileInputStream(
+                        "C:\\work\\batch\\artifact\\raceresult-c4af3-firebase-adminsdk-fmu17-0a792a675c.json");
 
-            FirebaseOptions options = FirebaseOptions.builder()
-                    .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-                    .setDatabaseUrl("https://raceresult-c4af3-default-rtdb.firebaseio.com/")
-                    .build();
+                FirebaseOptions options = FirebaseOptions.builder()
+                        .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                        .setDatabaseUrl("https://raceresult-c4af3-default-rtdb.firebaseio.com/")
+                        .build();
 
-            FirebaseApp.initializeApp(options);
+                FirebaseApp.initializeApp(options);
+            }
 
             // データベース参照の取得
             database = FirebaseDatabase.getInstance().getReference();
