@@ -13,6 +13,9 @@ import javax.net.ssl.X509TrustManager;
 
 import org.jsoup.Jsoup;
 import org.jsoup.select.Elements;
+
+import firebase.FirebaseRealtimeDBManager;
+
 import org.jsoup.nodes.Document;
 
 public class RaceTrendsMain {

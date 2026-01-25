@@ -26,8 +26,8 @@ public class Main {
             database = FirebaseDatabase.getInstance().getReference();
 
             // 削除対象パスと日付
-            String path = "raceResult/中山";
-            String targetDate = "20250915"; // Firebase に保存されている形式に合わせる
+            String path = "raceResult/京都";
+            String targetDate = "20260124"; // Firebase に保存されている形式に合わせる
 
             deleteDataByDate(path, targetDate);
 
