@@ -4,9 +4,9 @@ import java.util.Arrays;
 import java.util.List;
 
 public class Config {
-    public static final List<String> TARGET_JO_LIST = Arrays.asList("札幌", "阪神","中京");
-    public static final String TARGET_DATE_LIST =  LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-
+    public static final List<String> TARGET_JO_LIST = Arrays.asList("札幌", "小倉","新潟");
+    public static final String TARGET_DATE_LIST =  "20260802";
+    // public static final String TARGET_DATE_LIST =  LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         // joList.add("新潟");
         // joList.add("中京");
         // joList.add("札幌");

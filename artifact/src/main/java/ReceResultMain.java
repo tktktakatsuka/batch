@@ -121,17 +121,25 @@ public class ReceResultMain {
                         if (!contentElements.isEmpty()) {
                             // DB処理 データをインサート
                             Map<String, Object> raceData = manager.setData(date, kaisaijo, String.valueOf(raceSuu),
-                                    contentElements.get(j).text(), contentElements.get(j + 1).text(),
-                                    contentElements.get(j + 2).text(), contentElements.get(j + 3).text(),
-                                    contentElements.get(j + 4).text(), contentElements.get(j + 5).text(),
-                                    contentElements.get(j + 6).text(), contentElements.get(j + 7).text(),
-                                    contentElements.get(j + 8).text(), contentElements.get(j + 9).text(),
-                                    contentElements.get(j + 10).text(), contentElements.get(j + 11).text(),
-                                    contentElements.get(j + 12).text(), contentElements.get(j + 13).text(),
-                                    contentElements.get(j + 14).text(), raceTitle, hassouTime);
+                                    contentElements.get(j+1).text(), 
+                                    contentElements.get(j + 2).text(),
+                                    contentElements.get(j + 3).text(), 
+                                    contentElements.get(j + 4).text(),
+                                    contentElements.get(j + 5).text(), 
+                                    contentElements.get(j + 6).text(),
+                                    contentElements.get(j + 7).text(), 
+                                    contentElements.get(j + 8).text(),
+                                    contentElements.get(j + 9).text(), 
+                                    contentElements.get(j + 10).text(),
+                                    contentElements.get(j + 11).text(), 
+                                    contentElements.get(j + 12).text(),
+                                    contentElements.get(j + 13).text(), 
+                                    contentElements.get(j + 14).text(),
+                                    contentElements.get(j + 15).text(), 
+                                    raceTitle, hassouTime);
                             FirebaseRealtimeDBManager.insertData("raceResult" + "/" + kaisaijo + "/", raceData);
                         }
-                        j = j + 15;
+                        j = j + 16;
                         // 会員登録分の情報をskip
                         if (i == 0) {
                             j = j + 1;
