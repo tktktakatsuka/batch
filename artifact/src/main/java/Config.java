@@ -4,7 +4,7 @@ import java.util.Arrays;
 import java.util.List;
 
 public class Config {
-    public static final List<String> TARGET_JO_LIST = Arrays.asList( "中京","新潟","札幌");
+    public static final List<String> TARGET_JO_LIST = Arrays.asList( "中京");
     public static final String TARGET_DATE_LIST =  "20260808";
     // public static final String TARGET_DATE_LIST =  LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         // joList.add("新潟");
