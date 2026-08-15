@@ -10,6 +10,13 @@ import com.google.firebase.database.*;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.Properties;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -49,14 +56,199 @@ public class FirebaseRealtimeDBManager {
      */
     // データを挿入するメソッド
     public static void insertData(String path, Object map) {
-        ApiFuture<Void> future = database.child(path).push().setValueAsync(map);
-        try {
-            // 処理が完了するのを待つ
-            future.get();
-            System.out.println("Data inserted successfully at: " + path);
-        } catch (Exception e) {
-            System.err.println("Error inserting data: " + e.getMessage());
+        // Supabaseに挿入する実装へ置き換え
+        // SUPABASE_URL と SUPABASE_KEY を環境変数 or プロパティファイルで指定してください
+        Properties props = loadProperties();
+        String supabaseUrl = System.getenv("SUPABASE_URL");
+        if (supabaseUrl == null || supabaseUrl.isEmpty()) supabaseUrl = props.getProperty("supabase.url");
+        String supabaseKey = System.getenv("SUPABASE_KEY");
+        if (supabaseKey == null || supabaseKey.isEmpty()) supabaseKey = props.getProperty("supabase.key");
+        // ユーザーの access token を環境変数またはプロパティから取得できるようにする
+        String supabaseAuthToken = System.getenv("SUPABASE_AUTH_TOKEN");
+        if (supabaseAuthToken == null || supabaseAuthToken.isEmpty()) supabaseAuthToken = props.getProperty("supabase.auth_token");
+
+        if (supabaseUrl == null || supabaseUrl.isEmpty() || supabaseKey == null || supabaseKey.isEmpty()) {
+            System.err.println("SUPABASE_URL or SUPABASE_KEY not set in env or supabase.properties. Falling back to Firebase insertion.");
+            try {
+                ApiFuture<Void> future = database.child(path).push().setValueAsync(map);
+                future.get();
+                System.out.println("Data inserted successfully at: " + path);
+            } catch (Exception e) {
+                System.err.println("Error inserting data to Firebase: " + e.getMessage());
+            }
+            return;
         }
+
+        // path を分解してテーブル名と追加カラムを取得する (例: "raceStatistics/kaisaijo/芝")
+        String[] parts = path.split("/");
+        if (parts.length == 0) {
+            System.err.println("Invalid path: " + path);
+            return;
+        }
+        String table = parts[0];
+        // プロパティにマッピングがあれば使用 (例: supabase.table.raceResult=race_trends)
+        String mapped = props.getProperty("supabase.table." + table);
+        if ((mapped == null || mapped.isEmpty())) mapped = props.getProperty("supabase.table." + table.toLowerCase());
+        if ((mapped == null || mapped.isEmpty())) mapped = props.getProperty("supabase.table." + toSnakeCase(table));
+        if (mapped != null && !mapped.isEmpty()) {
+            table = mapped;
+        }
+
+        // map は Map<String,Object> と想定
+        Map<String, Object> payloadMap = new HashMap<>();
+        if (map instanceof Map) {
+            //noinspection unchecked
+            payloadMap.putAll((Map<String, Object>) map);
+        } else {
+            payloadMap.put("value", map == null ? null : map.toString());
+        }
+
+        if (parts.length >= 2) {
+            payloadMap.put("kaisaijo", parts[1]);
+        }
+        if (parts.length >= 3) {
+            payloadMap.put("cose", parts[2]);
+        }
+
+        // 指定テーブル向けに送信フィールドをフィルタ
+        String columnsProp = props.getProperty("supabase.table_columns." + table);
+        java.util.Set<String> allowed = null;
+        if (columnsProp != null && !columnsProp.isEmpty()) {
+            allowed = new java.util.HashSet<>();
+            for (String c : columnsProp.split("\\s*,\\s*")) {
+                allowed.add(c.trim());
+            }
+        }
+
+        Map<String, Object> filtered = new HashMap<>();
+        for (Map.Entry<String, Object> e : payloadMap.entrySet()) {
+            String key = e.getKey();
+            Object val = e.getValue();
+            // 特別マッピング
+            String keySnake;
+            if ("tyaku".equals(key)) {
+                keySnake = "rank";
+            } else {
+                keySnake = toSnakeCase(key);
+            }
+
+            if (allowed == null) {
+                // 許可リストがない場合は全て snake_case に変換して送る
+                filtered.put(keySnake, val);
+            } else {
+                if (allowed.contains(keySnake)) {
+                    filtered.put(keySnake, val);
+                }
+            }
+        }
+
+        String json = toJson(filtered);
+
+        try {
+            URL url = new URL(supabaseUrl + "/rest/v1/" + table);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/json");
+            if (supabaseKey != null && !supabaseKey.isEmpty()) {
+                conn.setRequestProperty("apikey", supabaseKey);
+            }
+            if (supabaseAuthToken != null && !supabaseAuthToken.isEmpty()) {
+                conn.setRequestProperty("Authorization", "Bearer " + supabaseAuthToken);
+            } else if (supabaseKey != null && !supabaseKey.isEmpty()) {
+                // フォールバック: key を Bearer トークンとして使う（publishable key 等）
+                conn.setRequestProperty("Authorization", "Bearer " + supabaseKey);
+            }
+            conn.setRequestProperty("Prefer", "return=representation");
+            // スキーマ指定（デフォルト public）。プロパティ supabase.schema で上書き可能
+            String schema = props.getProperty("supabase.schema", "public");
+            conn.setRequestProperty("Accept-Profile", schema);
+            conn.setRequestProperty("Content-Profile", schema);
+            conn.setDoOutput(true);
+
+            try (OutputStream os = conn.getOutputStream()) {
+                byte[] input = json.getBytes("utf-8");
+                os.write(input, 0, input.length);
+            }
+
+            int code = conn.getResponseCode();
+            BufferedReader br;
+            if (code >= 200 && code < 300) {
+                br = new BufferedReader(new InputStreamReader(conn.getInputStream(), "utf-8"));
+            } else {
+                br = new BufferedReader(new InputStreamReader(conn.getErrorStream(), "utf-8"));
+            }
+            StringBuilder response = new StringBuilder();
+            String responseLine;
+            while ((responseLine = br.readLine()) != null) {
+                response.append(responseLine.trim());
+            }
+
+            if (code >= 200 && code < 300) {
+                System.out.println("Supabase insert succeeded: " + response.toString());
+            } else {
+                System.err.println("Supabase insert failed (code=" + code + "): " + response.toString());
+            }
+
+        } catch (Exception e) {
+            System.err.println("Error inserting data to Supabase: " + e.getMessage());
+        }
+    }
+
+    // シンプルな Map -> JSON シリアライザ（値は文字列として扱う）
+    private static String escapeJson(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
+    }
+
+    private static String toJson(Map<String, Object> map) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        boolean first = true;
+        for (Map.Entry<String, Object> e : map.entrySet()) {
+            if (!first) sb.append(',');
+            first = false;
+            String k = e.getKey();
+            Object v = e.getValue();
+            sb.append('"').append(escapeJson(k)).append('"').append(":");
+            if (v == null) {
+                sb.append("null");
+            } else {
+                // 値は文字列としてエスケープして出力
+                sb.append('"').append(escapeJson(v.toString())).append('"');
+            }
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private static String toSnakeCase(String s) {
+        if (s == null) return null;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (Character.isUpperCase(c)) {
+                if (i > 0) sb.append('_');
+                sb.append(Character.toLowerCase(c));
+            } else if (c == '-') {
+                sb.append('_');
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
+    // supabase.properties をクラスパスからロード
+    private static Properties loadProperties() {
+        Properties props = new Properties();
+        try (InputStream is = FirebaseRealtimeDBManager.class.getClassLoader().getResourceAsStream("supabase.properties")) {
+            if (is != null) {
+                props.load(is);
+            }
+        } catch (IOException e) {
+            // 無視: ファイルがない場合は環境変数を使う
+        }
+        return props;
     }
 
     // データを取得するメソッド
