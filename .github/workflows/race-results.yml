@@ -46,4 +46,21 @@ jobs:
 
       - name: レース結果・傾向を取込
         working-directory: artifact
-        run: java -Dfile.encoding=UTF-8 -jar target/artifact-0.0.1-SNAPSHOT.jar
+        run: |
+          set -o pipefail
+          java -Dfile.encoding=UTF-8 -jar target/artifact-0.0.1-SNAPSHOT.jar 2>&1 | tee run.log
+          inserted=$(grep -c "Supabase insert succeeded" run.log || true)
+          skipped=$(grep -c "登録済みのためスキップ" run.log || true)
+          failed=$(grep -c -E "Supabase insert failed|Error inserting data to Supabase|既存データを確認できない" run.log || true)
+          echo "::notice title=取込結果::登録 ${inserted} 件 / 登録済みスキップ ${skipped} 件 / 失敗 ${failed} 件"
+          {
+            echo "### 取込結果"
+            echo "- 登録: ${inserted} 件"
+            echo "- 登録済みのためスキップ: ${skipped} 件"
+            echo "- 失敗: ${failed} 件"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$failed" -gt 0 ]; then
+            grep -E "Supabase insert failed|Error inserting data to Supabase|既存データを確認できない" run.log | head -5
+            echo "::error title=取込失敗::Supabase への登録または確認に失敗したデータがあります"
+            exit 1
+          fi
