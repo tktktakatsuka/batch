@@ -37,6 +37,16 @@ public class RaceTrendsMain {
 
     private void scrapingAndInsert(FirebaseRealtimeDBManager dbManager, String date, String kaisaijo)
             throws NoSuchAlgorithmException, KeyManagementException {
+        // 既に Supabase に入っていればスキップ（重複挿入防止）
+        java.util.Set<String> existing = FirebaseRealtimeDBManager.fetchExistingValues("race_trends", date, kaisaijo, "kaisaijo");
+        if (existing == null) {
+            System.err.println("[race_trends] " + date + " " + kaisaijo + ": 既存データを確認できないため中止します");
+            return;
+        }
+        if (!existing.isEmpty()) {
+            System.out.println("[race_trends] " + date + " " + kaisaijo + ": 登録済みのためスキップ");
+            return;
+        }
         try {
             String jocode = "";
             switch (kaisaijo) {

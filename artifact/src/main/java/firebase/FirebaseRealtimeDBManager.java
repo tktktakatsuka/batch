@@ -194,6 +194,62 @@ public class FirebaseRealtimeDBManager {
         }
     }
 
+    /**
+     * Supabase に指定日・開催場のデータが既にあるか確認し、column の値の一覧を返す。
+     * 重複挿入を防ぐために使う。取得に失敗した場合は null を返す（呼び出し側で処理を中止する）。
+     *
+     * @param table  例: race_results
+     * @param date   kaisaibi (yyyyMMdd)
+     * @param jo     kaisaijo (例: 東京)
+     * @param column 取得するカラム (例: race_no)
+     */
+    public static java.util.Set<String> fetchExistingValues(String table, String date, String jo, String column) {
+        Properties props = loadProperties();
+        String supabaseUrl = System.getenv("SUPABASE_URL");
+        if (supabaseUrl == null || supabaseUrl.isEmpty()) supabaseUrl = props.getProperty("supabase.url");
+        String supabaseKey = System.getenv("SUPABASE_KEY");
+        if (supabaseKey == null || supabaseKey.isEmpty()) supabaseKey = props.getProperty("supabase.key");
+        String supabaseAuthToken = System.getenv("SUPABASE_AUTH_TOKEN");
+        if (supabaseAuthToken == null || supabaseAuthToken.isEmpty()) supabaseAuthToken = props.getProperty("supabase.auth_token");
+        if (supabaseUrl == null || supabaseUrl.isEmpty() || supabaseKey == null || supabaseKey.isEmpty()) {
+            System.err.println("SUPABASE_URL or SUPABASE_KEY not set. Cannot check existing data.");
+            return null;
+        }
+        try {
+            String cs = java.nio.charset.StandardCharsets.UTF_8.name();
+            String query = "select=" + java.net.URLEncoder.encode(column, cs)
+                    + "&kaisaibi=eq." + java.net.URLEncoder.encode(date, cs)
+                    + "&kaisaijo=eq." + java.net.URLEncoder.encode(jo, cs);
+            URL url = new URL(supabaseUrl + "/rest/v1/" + table + "?" + query);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("apikey", supabaseKey);
+            String bearer = (supabaseAuthToken != null && !supabaseAuthToken.isEmpty()) ? supabaseAuthToken : supabaseKey;
+            conn.setRequestProperty("Authorization", "Bearer " + bearer);
+            conn.setRequestProperty("Accept-Profile", props.getProperty("supabase.schema", "public"));
+            int code = conn.getResponseCode();
+            InputStream is = (code >= 200 && code < 300) ? conn.getInputStream() : conn.getErrorStream();
+            StringBuilder sb = new StringBuilder();
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(is, "utf-8"))) {
+                String line;
+                while ((line = br.readLine()) != null) sb.append(line);
+            }
+            if (code < 200 || code >= 300) {
+                System.err.println("Supabase select failed (code=" + code + "): " + sb);
+                return null;
+            }
+            java.util.Set<String> values = new java.util.HashSet<>();
+            for (com.google.gson.JsonElement el : com.google.gson.JsonParser.parseString(sb.toString()).getAsJsonArray()) {
+                com.google.gson.JsonElement v = el.getAsJsonObject().get(column);
+                if (v != null && !v.isJsonNull()) values.add(v.getAsString());
+            }
+            return values;
+        } catch (Exception e) {
+            System.err.println("Error checking existing data in Supabase: " + e.getMessage());
+            return null;
+        }
+    }
+
     // シンプルな Map -> JSON シリアライザ（値は文字列として扱う）
     private static String escapeJson(String s) {
         if (s == null) return "";

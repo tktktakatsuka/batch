@@ -45,8 +45,18 @@ public class ReceResultMain {
      */
     private void scrapingAndInsert(FirebaseRealtimeDBManager dbManager, String date, String kaisaijo)
             throws InterruptedException, NoSuchAlgorithmException, KeyManagementException {
+        // 既に Supabase に入っているレース番号を取得（重複挿入防止）
+        java.util.Set<String> existingRaces = FirebaseRealtimeDBManager.fetchExistingValues("race_results", date, kaisaijo, "race_no");
+        if (existingRaces == null) {
+            System.err.println("[race_results] " + date + " " + kaisaijo + ": 既存データを確認できないため中止します");
+            return;
+        }
         try {
             for (int raceSuu = 1; raceSuu < 13; raceSuu++) {
+                if (existingRaces.contains(String.valueOf(raceSuu))) {
+                    System.out.println("[race_results] " + date + " " + kaisaijo + " " + raceSuu + "R: 登録済みのためスキップ");
+                    continue;
+                }
                 String jocode = "";
                 switch (kaisaijo) {
                     case "東京":
