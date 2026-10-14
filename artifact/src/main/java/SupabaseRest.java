@@ -12,6 +12,7 @@ import java.util.Properties;
 import java.util.StringJoiner;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 /**
  * Supabase の REST API で行をまとめて削除・登録する。
@@ -25,7 +26,8 @@ public class SupabaseRest {
     private final String bearer;
     private final boolean dryRun;
     private final HttpClient http = HttpClient.newHttpClient();
-    private final Gson gson = new Gson();
+    // 一括登録では全行のキーが揃っている必要があるので、空の値も null として送る
+    private final Gson gson = new GsonBuilder().serializeNulls().create();
 
     public SupabaseRest(boolean dryRun) {
         this.dryRun = dryRun;
