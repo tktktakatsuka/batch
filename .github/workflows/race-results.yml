@@ -24,10 +24,9 @@ jobs:
       LANG: C.UTF-8
       TARGET_DATE: ${{ inputs.target_date }}
       TARGET_JO: ${{ inputs.target_jo }}
-      # Secrets 未登録の場合は supabase.properties の値が使われる
+      # 他のワークフローと同じ Secrets を使う（secret キーは RLS を通るので、ユーザーのトークンは不要）
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      SUPABASE_AUTH_TOKEN: ${{ secrets.SUPABASE_AUTH_TOKEN }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
     steps:
       # Supabase 版のコードは modernize ブランチにある
       - uses: actions/checkout@v5
