@@ -1,3 +1,4 @@
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -5,6 +6,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -41,8 +43,18 @@ public class RaceResultsJob {
         }
 
         SupabaseRest db = new SupabaseRest(dryRun);
+        // 1つの開催で失敗しても残りは取り込み、最後に失敗した開催をまとめて知らせる
+        List<String> failed = new ArrayList<>();
         for (String date : dates) {
-            for (String code : Keibalab.courseCodesOn(date)) {
+            TreeSet<String> codes;
+            try {
+                codes = Keibalab.courseCodesOn(date);
+            } catch (IOException e) {
+                System.err.println(date + ": 開催の一覧を取得できませんでした (" + e.getMessage() + ")");
+                failed.add(date);
+                continue;
+            }
+            for (String code : codes) {
                 String course = Keibalab.COURSES.get(code);
                 List<Map<String, Object>> rows = new ArrayList<>();
                 for (int raceNo = 1; raceNo <= 12; raceNo++) {
@@ -55,10 +67,19 @@ public class RaceResultsJob {
                 Map<String, String> key = new LinkedHashMap<>();
                 key.put("kaisaibi", date);
                 key.put("kaisaijo", course);
-                db.delete("race_results", key);
-                db.insert("race_results", rows);
-                System.out.println(date + " " + course + ": " + rows.size() + "頭分の結果を登録しました");
+                try {
+                    db.delete("race_results", key);
+                    db.insert("race_results", rows);
+                    System.out.println(date + " " + course + ": " + rows.size() + "頭分の結果を登録しました");
+                } catch (IOException e) {
+                    System.err.println(date + " " + course + ": 登録に失敗しました (" + e.getMessage() + ")");
+                    failed.add(date + " " + course);
+                }
             }
+        }
+        if (!failed.isEmpty()) {
+            System.err.println("登録できなかった開催（この日付で取り込み直してください）: " + String.join(", ", failed));
+            System.exit(1);
         }
     }
 

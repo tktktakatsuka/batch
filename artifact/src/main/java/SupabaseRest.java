@@ -6,6 +6,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -26,6 +27,8 @@ public class SupabaseRest {
     private final String bearer;
     private final boolean dryRun;
     private final HttpClient http = HttpClient.newHttpClient();
+    // 送り直すまでの待ち時間（秒）。この回数だけ送り直す
+    private static final long[] RETRY_WAIT_SECONDS = {5, 15, 45};
     // 一括登録では全行のキーが揃っている必要があるので、空の値も null として送る
     private final Gson gson = new GsonBuilder().serializeNulls().create();
 
@@ -85,10 +88,27 @@ public class SupabaseRest {
                 .header("apikey", apiKey)
                 .header("Authorization", "Bearer " + bearer)
                 .header("Prefer", "return=minimal")
+                .timeout(Duration.ofSeconds(60))
                 .build();
-        HttpResponse<String> res = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        if (res.statusCode() / 100 != 2) {
-            throw new IOException(what + " failed (" + res.statusCode() + "): " + res.body());
+        // Supabase が一時的に 504 Gateway Timeout などを返すことがあるので、間をあけて何度か送り直す
+        for (int attempt = 1; ; attempt++) {
+            String error;
+            boolean retryable;
+            try {
+                HttpResponse<String> res = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+                int status = res.statusCode();
+                if (status / 100 == 2) return;
+                error = what + " failed (" + status + "): " + res.body();
+                // 4xx（429 以外）は送り直しても同じ結果になる
+                retryable = status / 100 == 5 || status == 429;
+            } catch (IOException e) {
+                error = what + " failed: " + e;
+                retryable = true;
+            }
+            if (!retryable || attempt > RETRY_WAIT_SECONDS.length) throw new IOException(error);
+            long wait = RETRY_WAIT_SECONDS[attempt - 1];
+            System.err.println(error + " → " + wait + "秒後に送り直します（" + attempt + "回目）");
+            Thread.sleep(wait * 1000);
         }
     }
 
