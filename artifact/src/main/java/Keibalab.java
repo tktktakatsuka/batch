@@ -5,6 +5,7 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 
@@ -18,6 +19,8 @@ public class Keibalab {
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
     // 相手のサーバーに負担をかけないよう、1ページごとに待つ
     private static final long INTERVAL_MS = 1500;
+    // 接続できなかったときに送り直すまでの待ち時間（秒）
+    private static final long[] RETRY_WAIT_SECONDS = {10, 60};
 
     /** 競馬場コード → 競馬場名 */
     public static final Map<String, String> COURSES = new LinkedHashMap<>();
@@ -45,10 +48,24 @@ public class Keibalab {
                 Thread.currentThread().interrupt();
             }
         }
-        try {
-            return Jsoup.connect(url).userAgent(USER_AGENT).timeout(30_000).get();
-        } finally {
-            lastFetch = System.currentTimeMillis();
+        // 接続できないときは間をあけて送り直す（404 などの応答があったときは送り直さない）
+        for (int attempt = 0; ; attempt++) {
+            try {
+                return Jsoup.connect(url).userAgent(USER_AGENT).timeout(30_000).get();
+            } catch (HttpStatusException e) {
+                throw e;
+            } catch (IOException e) {
+                if (attempt >= RETRY_WAIT_SECONDS.length) throw e;
+                System.err.println(url + ": " + e.getMessage() + " → " + RETRY_WAIT_SECONDS[attempt] + "秒後に送り直します");
+                try {
+                    Thread.sleep(RETRY_WAIT_SECONDS[attempt] * 1000);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
+            } finally {
+                lastFetch = System.currentTimeMillis();
+            }
         }
     }
 

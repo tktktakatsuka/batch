@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
 
+import org.jsoup.HttpStatusException;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
@@ -22,6 +23,7 @@ import org.jsoup.select.Elements;
 public class RaceResultsJob {
 
     private static final DateTimeFormatter YMD = DateTimeFormatter.ofPattern("yyyyMMdd");
+    private static final int MAX_FAILURES_IN_ROW = 3;
 
     public static void main(String[] args) throws Exception {
         boolean dryRun = false;
@@ -45,21 +47,39 @@ public class RaceResultsJob {
         SupabaseRest db = new SupabaseRest(dryRun);
         // 1つの開催で失敗しても残りは取り込み、最後に失敗した開催をまとめて知らせる
         List<String> failed = new ArrayList<>();
-        for (String date : dates) {
+        // keibalab に続けて接続できないときは、残りの日付を試しても無駄なので打ち切る
+        int failuresInRow = 0;
+        for (int i = 0; i < dates.size(); i++) {
+            String date = dates.get(i);
+            if (failuresInRow >= MAX_FAILURES_IN_ROW) {
+                System.err.println("keibalab に続けて接続できないため、" + date + " 以降の取り込みを中止します");
+                failed.addAll(dates.subList(i, dates.size()));
+                break;
+            }
             TreeSet<String> codes;
             try {
                 codes = Keibalab.courseCodesOn(date);
             } catch (IOException e) {
                 System.err.println(date + ": 開催の一覧を取得できませんでした (" + e.getMessage() + ")");
                 failed.add(date);
+                failuresInRow++;
                 continue;
             }
             for (String code : codes) {
                 String course = Keibalab.COURSES.get(code);
                 List<Map<String, Object>> rows = new ArrayList<>();
-                for (int raceNo = 1; raceNo <= 12; raceNo++) {
-                    rows.addAll(scrapeRace(date, code, course, raceNo));
+                try {
+                    for (int raceNo = 1; raceNo <= 12; raceNo++) {
+                        rows.addAll(scrapeRace(date, code, course, raceNo));
+                    }
+                } catch (IOException e) {
+                    // 一部のレースだけで入れ直すと残りのレースが消えるので、この開催は登録しない
+                    System.err.println(date + " " + course + ": 取得できないレースがあったため登録しません (" + e.getMessage() + ")");
+                    failed.add(date + " " + course);
+                    failuresInRow++;
+                    continue;
                 }
+                failuresInRow = 0;
                 if (rows.isEmpty()) {
                     System.out.println(date + " " + course + ": 結果がまだありません");
                     continue;
@@ -83,14 +103,17 @@ public class RaceResultsJob {
         }
     }
 
-    static List<Map<String, Object>> scrapeRace(String date, String code, String course, int raceNo) {
+    static List<Map<String, Object>> scrapeRace(String date, String code, String course, int raceNo) throws IOException {
         List<Map<String, Object>> rows = new ArrayList<>();
         Document doc;
         try {
             doc = Keibalab.fetch(Keibalab.raceUrl(date, code, raceNo));
-        } catch (Exception e) {
-            System.err.println(date + " " + course + raceNo + "R: 取得できませんでした (" + e.getMessage() + ")");
+        } catch (HttpStatusException e) {
+            // 12R まで無い開催などはページが無い
+            System.err.println(date + " " + course + raceNo + "R: ページがありません (" + e.getStatusCode() + ")");
             return rows;
+        } catch (IOException e) {
+            throw new IOException(course + raceNo + "R: " + e.getMessage(), e);
         }
         Element table = doc.selectFirst("table.resulttable");
         if (table == null) return rows;
