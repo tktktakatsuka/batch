@@ -18,6 +18,9 @@ on:
 jobs:
   import:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     timeout-minutes: 30
     env:
       TZ: Asia/Tokyo
@@ -62,4 +65,43 @@ jobs:
             grep -E "Supabase insert failed|Error inserting data to Supabase|既存データを確認できない" run.log | head -5
             echo "::error title=取込失敗::Supabase への登録または確認に失敗したデータがあります"
             exit 1
+          fi
+
+      # 失敗したら Issue を作って知らせる（GitHub のメール・アプリに届く）。
+      # 同じワークフローの Issue が開いたままなら、新しく作らずにコメントを足す（30分ごとの失敗で Issue が増えないように）
+      - name: 失敗を Issue で知らせる
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          WORKFLOW: ${{ github.workflow }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          title="⚠ ${WORKFLOW} が失敗しました"
+          {
+            echo "${WORKFLOW} が失敗しました（$(date '+%Y/%m/%d %H:%M')）"
+            echo ""
+            echo "- 実行: ${RUN_URL}"
+            if [ -f artifact/run.log ]; then
+              echo ""
+              echo "ログの最後:"
+              echo '```'
+              tail -n 15 artifact/run.log
+              echo '```'
+            else
+              echo "- ビルドか準備の段階で失敗しています（実行のページでログを確認してください）"
+            fi
+          } > body.md
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title ${WORKFLOW} が失敗しました" --json number,title \
+            --jq "map(select(.title == \"${title}\")) | .[0].number // empty")
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body-file body.md
+          else
+            {
+              echo "@${OWNER}"
+              cat body.md
+              echo ""
+              echo "直したらこの Issue を閉じてください。開いている間は、同じワークフローの失敗をここにコメントで足します。"
+            } > new.md
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body-file new.md
           fi
