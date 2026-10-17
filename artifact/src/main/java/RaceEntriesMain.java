@@ -1,3 +1,4 @@
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -7,7 +8,9 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 
+import org.jsoup.HttpStatusException;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
@@ -36,12 +39,29 @@ public class RaceEntriesMain {
         }
 
         SupabaseRest db = new SupabaseRest(dryRun);
+        // 取り込めなかった開催。最後にまとめて出し、失敗として終える（ワークフローが Issue で知らせる）
+        List<String> failed = new ArrayList<>();
         for (String date : dates) {
-            for (String code : Keibalab.courseCodesOn(date)) {
+            TreeSet<String> codes;
+            try {
+                codes = Keibalab.courseCodesOn(date);
+            } catch (IOException e) {
+                System.err.println(date + ": 開催の一覧を取得できませんでした (" + e.getMessage() + ")");
+                failed.add(date);
+                continue;
+            }
+            for (String code : codes) {
                 String course = Keibalab.COURSES.get(code);
                 List<Map<String, Object>> rows = new ArrayList<>();
-                for (int raceNo = 1; raceNo <= 12; raceNo++) {
-                    rows.addAll(scrapeRace(date, code, course, raceNo));
+                try {
+                    for (int raceNo = 1; raceNo <= 12; raceNo++) {
+                        rows.addAll(scrapeRace(date, code, course, raceNo));
+                    }
+                } catch (IOException e) {
+                    // 一部のレースだけで入れ直すと残りのレースの出馬表が消えるので、この開催は前のまま残す
+                    System.err.println(date + " " + course + ": 取得できないレースがあったため登録しません (" + e.getMessage() + ")");
+                    failed.add(date + " " + course);
+                    continue;
                 }
                 if (rows.isEmpty()) {
                     System.out.println(date + " " + course + ": 出馬表がまだありません");
@@ -50,21 +70,32 @@ public class RaceEntriesMain {
                 Map<String, String> key = new LinkedHashMap<>();
                 key.put("kaisaibi", date);
                 key.put("kaisaijo", course);
-                db.delete("race_entries", key);
-                db.insert("race_entries", rows);
-                System.out.println(date + " " + course + ": " + rows.size() + "頭を登録しました");
+                try {
+                    db.delete("race_entries", key);
+                    db.insert("race_entries", rows);
+                    System.out.println(date + " " + course + ": " + rows.size() + "頭を登録しました");
+                } catch (IOException e) {
+                    System.err.println(date + " " + course + ": 登録に失敗しました (" + e.getMessage() + ")");
+                    failed.add(date + " " + course);
+                }
             }
+        }
+        if (!failed.isEmpty()) {
+            System.err.println("取り込めなかった開催（この日付で取り込み直してください）: " + String.join(", ", failed));
+            System.exit(1);
         }
     }
 
-    static List<Map<String, Object>> scrapeRace(String date, String code, String course, int raceNo) {
+    static List<Map<String, Object>> scrapeRace(String date, String code, String course, int raceNo) throws IOException {
         List<Map<String, Object>> rows = new ArrayList<>();
         Document doc;
         try {
             doc = Keibalab.fetch(Keibalab.entriesUrl(date, code, raceNo));
-        } catch (Exception e) {
-            System.err.println(date + " " + course + raceNo + "R: 取得できませんでした (" + e.getMessage() + ")");
+        } catch (HttpStatusException e) {
+            // 12R まで無い開催などはページが無い
             return rows;
+        } catch (IOException e) {
+            throw new IOException(course + raceNo + "R: " + e.getMessage(), e);
         }
         Element table = doc.selectFirst("table[summary$=出馬表]");
         if (table == null) return rows;
