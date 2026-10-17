@@ -1,0 +1,51 @@
+name: オッズ更新
+
+on:
+  # 時刻は UTC（日本時間 = UTC + 9時間）
+  schedule:
+    - cron: "0,30 0-7 * * 6,0"   # 土・日 9:00〜16:30 (JST) に30分ごと
+  # 手動実行（祝日の月曜開催など）
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: "対象日 yyyyMMdd（空なら今日）"
+        required: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # 前の実行が終わる前に次が始まったら、前の実行を待たずに新しい方だけ動かす
+    concurrency:
+      group: race-odds
+      cancel-in-progress: true
+    env:
+      TZ: Asia/Tokyo
+      LANG: C.UTF-8
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+    steps:
+      # Supabase 版のコードは modernize ブランチにある
+      - uses: actions/checkout@v5
+        with:
+          ref: modernize/java-20260805104936
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: ビルド
+        working-directory: artifact
+        run: mvn -B -q package -DskipTests
+
+      - name: 単勝オッズを更新
+        working-directory: artifact
+        run: |
+          set -o pipefail
+          java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -jar target/artifact-0.0.1-SNAPSHOT.jar odds ${{ inputs.target_date }} 2>&1 | tee run.log
+          {
+            echo "### 更新結果"
+            grep -E "オッズを更新しました|開催がありません|更新できなかったレース" run.log | sed 's/^/- /' || true
+          } >> "$GITHUB_STEP_SUMMARY"
