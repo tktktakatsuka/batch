@@ -62,11 +62,27 @@ public class SupabaseRest {
             System.out.println("[dry-run] DELETE " + table + " " + eq);
             return;
         }
+        send(HttpRequest.newBuilder(URI.create(url + "/rest/v1/" + table + "?" + eqQuery(eq))).DELETE(), "DELETE " + table);
+    }
+
+    private static String eqQuery(Map<String, String> eq) {
         StringJoiner query = new StringJoiner("&");
         for (Map.Entry<String, String> e : eq.entrySet()) {
             query.add(e.getKey() + "=eq." + URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8));
         }
-        send(HttpRequest.newBuilder(URI.create(url + "/rest/v1/" + table + "?" + query)).DELETE(), "DELETE " + table);
+        return query.toString();
+    }
+
+    /** eq 条件に一致する行の列を更新する */
+    public void update(String table, Map<String, String> eq, Map<String, Object> values) throws IOException, InterruptedException {
+        if (dryRun) {
+            System.out.println("[dry-run] UPDATE " + table + " " + eq + " " + values);
+            return;
+        }
+        send(HttpRequest.newBuilder(URI.create(url + "/rest/v1/" + table + "?" + eqQuery(eq)))
+                .header("Content-Type", "application/json")
+                .method("PATCH", HttpRequest.BodyPublishers.ofString(gson.toJson(values), StandardCharsets.UTF_8)),
+                "UPDATE " + table);
     }
 
     /** 行をまとめて登録する */

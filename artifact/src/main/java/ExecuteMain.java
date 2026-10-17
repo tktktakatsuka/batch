@@ -6,6 +6,7 @@ import java.util.Arrays;
  *   entries [日付...] [--dry-run]  出馬表を race_entries に登録する（日付省略で今日から7日以内）
  *   results [日付...] [--dry-run]  全着順の結果を race_results に登録する（日付省略で直近4日）
  *                                 日付は yyyyMMdd または yyyyMMdd-yyyyMMdd（期間）
+ *   odds [日付] [--dry-run]        単勝オッズを race_entries に書き込む（日付省略で今日）
  *   --dry-run を付けると、取得した内容を表示するだけで Supabase には書き込まない
  */
 public class ExecuteMain {
@@ -23,8 +24,11 @@ public class ExecuteMain {
             case "results":
                 RaceResultsJob.main(rest);
                 break;
+            case "odds":
+                RaceOddsJob.main(rest);
+                break;
             default:
-                System.err.println("不明なコマンドです: " + args[0] + "（entries / results）");
+                System.err.println("不明なコマンドです: " + args[0] + "（entries / results / odds）");
                 System.exit(1);
         }
     }

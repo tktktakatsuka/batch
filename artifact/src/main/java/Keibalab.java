@@ -5,6 +5,7 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.jsoup.Connection;
 import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -39,7 +40,23 @@ public class Keibalab {
 
     private static long lastFetch = 0;
 
-    public static synchronized Document fetch(String url) throws IOException {
+    public static Document fetch(String url) throws IOException {
+        return get(url, null).parse();
+    }
+
+    /**
+     * 単勝オッズ。馬番（先頭の0なし）→ オッズ（"5.3"）。発売前なら空。
+     * keibalab のオッズのページが読み込んでいる JSON を使う。
+     */
+    public static WinOdds winOdds(String date, String courseCode, int raceNo) throws IOException {
+        String no = String.format("%02d", raceNo);
+        String url = "https://ipat-f.keibalab.jp/jquery/odds.html?kind=tan&opdt=" + date
+                + "&rcoursecd=" + courseCode + "&rno=" + no + "&device=pc";
+        String referer = BASE + date + courseCode + no + "/odds.html";
+        return WinOdds.parse(get(url, referer).body());
+    }
+
+    private static synchronized Connection.Response get(String url, String referer) throws IOException {
         long wait = lastFetch + INTERVAL_MS - System.currentTimeMillis();
         if (wait > 0) {
             try {
@@ -51,7 +68,9 @@ public class Keibalab {
         // 接続できないときは間をあけて送り直す（404 などの応答があったときは送り直さない）
         for (int attempt = 0; ; attempt++) {
             try {
-                return Jsoup.connect(url).userAgent(USER_AGENT).timeout(30_000).get();
+                Connection conn = Jsoup.connect(url).userAgent(USER_AGENT).timeout(30_000).ignoreContentType(true);
+                if (referer != null) conn.referrer(referer);
+                return conn.execute();
             } catch (HttpStatusException e) {
                 throw e;
             } catch (IOException e) {

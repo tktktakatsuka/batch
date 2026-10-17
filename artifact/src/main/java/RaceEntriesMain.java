@@ -1,4 +1,6 @@
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -97,7 +99,32 @@ public class RaceEntriesMain {
             row.put("trainer", cell(td, col, "調教師"));
             rows.add(row);
         }
+        addOdds(rows, date, code, course, raceNo);
         return rows;
+    }
+
+    /**
+     * 単勝オッズと人気を行に足す。発売前やオッズが取れないときは空のまま登録する
+     * （一括登録では全行のキーを揃える必要があるので、空でも列は入れる）。
+     */
+    private static void addOdds(List<Map<String, Object>> rows, String date, String code, String course, int raceNo) {
+        WinOdds odds = null;
+        boolean drawn = rows.stream().anyMatch(r -> r.get("horse_number") != null);
+        if (drawn) {
+            try {
+                odds = Keibalab.winOdds(date, code, raceNo);
+            } catch (Exception e) {
+                System.err.println(date + " " + course + raceNo + "R: オッズを取得できませんでした (" + e.getMessage() + ")");
+            }
+        }
+        String now = OffsetDateTime.now(ZoneOffset.UTC).toString();
+        for (Map<String, Object> row : rows) {
+            String number = (String) row.get("horse_number");
+            String win = odds != null ? odds.oddsOf(number) : null;
+            row.put("win_odds", win);
+            row.put("popular", win != null ? odds.popularityOf(number) : null);
+            row.put("odds_updated_at", win != null ? now : null);
+        }
     }
 
     /** レース名だけを取り出す（条件や距離が同じ要素に入っている場合は除く） */
