@@ -296,7 +296,19 @@ public class FirebaseRealtimeDBManager {
 
     // supabase.properties をクラスパスからロード
     private static Properties loadProperties() {
+        // テーブル名の対応と送る列（秘密ではないのでコードに置く）。supabase.properties があればそちらで上書きする。
+        // 以前は supabase.properties だけに書いていたが、キーを含むので Git から外したときに一緒に消え、
+        // race_trends に書き込めなくなったため、ここに戻した
         Properties props = new Properties();
+        props.setProperty("supabase.table.raceResult", "race_results");
+        props.setProperty("supabase.table.raceResults", "race_results");
+        props.setProperty("supabase.table.race_result", "race_results");
+        props.setProperty("supabase.table.race_results", "race_results");
+        props.setProperty("supabase.table.race_trends", "race_trends");
+        props.setProperty("supabase.table_columns.race_results",
+                "kaisaibi,kaisaijo,race_no,race_title,rank,waku,horse_number,horse_name,age,weight,jockey,popular,"
+                        + "win_odds,time,tyakusa,tuukazyun,nobori,tyoukyousi,horse_weight,hassou_time,created_at");
+        props.setProperty("supabase.schema", "public");
         try (InputStream is = FirebaseRealtimeDBManager.class.getClassLoader().getResourceAsStream("supabase.properties")) {
             if (is != null) {
                 props.load(is);
