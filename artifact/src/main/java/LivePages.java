@@ -27,6 +27,8 @@ public final class LivePages {
         public String weight;
         public boolean scratched;
         public String jockey;
+        // 馬名（印なし）。馬番が入っていない出馬表の行と照らし合わせるため
+        public String name;
     }
 
     /** 当日の出馬表。horses は 馬番（先頭の0なし）→ 1頭分 */
@@ -34,6 +36,8 @@ public final class LivePages {
         public final Map<String, CardHorse> horses = new LinkedHashMap<>();
         public String weather;
         public String ground;
+        // 「15:40」。ページに無ければ null
+        public String postTime;
     }
 
     /** 1頭分のオッズ */
@@ -80,12 +84,15 @@ public final class LivePages {
                 h.weight = weight(cell(td, col, "馬体重"));
                 h.scratched = tr.hasClass("bgGray");
                 h.jockey = cell(td, col, "騎手");
+                h.name = Keibalab.horseName(tr.selectFirst("td[data-hsnm]").attr("data-hsnm"));
                 card.horses.put(number, h);
             }
         }
         List<Element> conditions = doc.select(".weather_ground li");
         card.weather = conditions.size() > 0 ? Keibalab.valueOrNull(conditions.get(0).text()) : null;
         card.ground = conditions.size() > 1 ? Keibalab.valueOrNull(conditions.get(1).text()) : null;
+        java.util.regex.Matcher post = java.util.regex.Pattern.compile("(\\d{1,2}:\\d{2})発走").matcher(doc.text());
+        card.postTime = post.find() ? post.group(1) : null;
         return card;
     }
 

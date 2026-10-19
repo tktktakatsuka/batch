@@ -52,8 +52,12 @@ public class RaceLiveJob {
         final String course;
         final int raceNo;
         LocalTime post;
+        // 取り込んだときの race_info（枠順確定前は発走時刻が入っていない）
+        String raceInfo;
         // 馬番 → race_entries の id
         final Map<String, Long> ids = new LinkedHashMap<>();
+        // 馬名 → race_entries の id（枠順確定前に取り込んで馬番が空の行のため）
+        final Map<String, Long> idsByName = new LinkedHashMap<>();
         OffsetDateTime oddsUpdated;
         OffsetDateTime cardUpdated;
         boolean hasResult;
@@ -72,12 +76,15 @@ public class RaceLiveJob {
     public static void main(String[] args) throws Exception {
         boolean dryRun = false;
         String date = null;
+        // 試すとき用: --at=yyyyMMddHHmm でその時刻に動いたことにする
+        OffsetDateTime now = OffsetDateTime.now(JST);
         for (String a : args) {
             if (a.equals("--dry-run")) dryRun = true;
+            else if (a.startsWith("--at=")) now = java.time.LocalDateTime.parse(a.substring(5),
+                    DateTimeFormatter.ofPattern("yyyyMMddHHmm")).atZone(JST).toOffsetDateTime();
             else date = a;
         }
-        if (date == null) date = LocalDate.now(JST).format(YMD);
-        OffsetDateTime now = OffsetDateTime.now(JST);
+        if (date == null) date = now.toLocalDate().format(YMD);
 
         SupabaseRest db = new SupabaseRest(dryRun);
         Map<String, Race> races = loadRaces(db, date);
@@ -90,7 +97,19 @@ public class RaceLiveJob {
         int cards = 0, odds = 0, results = 0;
         for (Race race : races.values()) {
             String code = courseCode(race.course);
-            if (code == null || race.post == null) continue;
+            if (code == null) continue;
+            // 枠順確定前に取り込んだ出馬表には発走時刻が無いので、当日の出馬表のページから1回だけ読む
+            if (race.post == null) {
+                if (race.cardUpdated != null) continue;
+                try {
+                    saveCard(db, date, code, race, now);
+                    cards++;
+                } catch (IOException e) {
+                    System.err.println(date + " " + race.label() + ": 取得できませんでした (" + e.getMessage() + ")");
+                    failed.add(race.label());
+                }
+                if (race.post == null) continue;
+            }
             OffsetDateTime post = LocalDate.parse(date, YMD).atTime(race.post).atZone(JST).toOffsetDateTime();
             long minutesToPost = java.time.Duration.between(now, post).toMinutes();
             try {
@@ -132,7 +151,7 @@ public class RaceLiveJob {
     static Map<String, Race> loadRaces(SupabaseRest db, String date) throws IOException, InterruptedException {
         Map<String, Race> races = new TreeMap<>();
         JsonArray entries = db.select("race_entries",
-                "select=id,kaisaijo,race_no,horse_number,race_info,odds_updated_at,card_updated_at&kaisaibi=eq." + date);
+                "select=id,kaisaijo,race_no,horse_number,horse_name,race_info,odds_updated_at,card_updated_at&kaisaibi=eq." + date);
         for (JsonElement e : entries) {
             JsonObject o = e.getAsJsonObject();
             String course = str(o, "kaisaijo");
@@ -140,7 +159,10 @@ public class RaceLiveJob {
             Race race = races.computeIfAbsent(key(course, raceNo), k -> new Race(course, raceNo));
             String number = str(o, "horse_number");
             if (number != null) race.ids.put(number, o.get("id").getAsLong());
+            String horse = Keibalab.horseName(str(o, "horse_name"));
+            if (horse != null) race.idsByName.put(horse, o.get("id").getAsLong());
             if (race.post == null) race.post = postTime(str(o, "race_info"));
+            if (race.raceInfo == null) race.raceInfo = str(o, "race_info");
             race.oddsUpdated = latest(race.oddsUpdated, time(str(o, "odds_updated_at")));
             race.cardUpdated = latest(race.cardUpdated, time(str(o, "card_updated_at")));
         }
@@ -171,19 +193,37 @@ public class RaceLiveJob {
             return;
         }
         LivePages.Card card = LivePages.card(doc);
+        // 発走時刻が分かったら race_info にも書く（アプリの出走表に発走時刻が出るように）
+        String fixedInfo = null;
+        if (race.post == null && card.postTime != null) {
+            race.post = postTime(card.postTime + "発走");
+            if (race.raceInfo != null && race.raceInfo.contains(" 発走")) fixedInfo = race.raceInfo.replace(" 発走", " " + card.postTime + "発走");
+        }
         String at = now.withOffsetSameInstant(ZoneOffset.UTC).toString();
         for (LivePages.CardHorse h : card.horses.values()) {
             Long id = race.ids.get(h.number);
+            if (id == null && h.name != null) id = race.idsByName.get(h.name);
+            if (id != null) race.ids.put(h.number, id);
             if (id == null) continue;
             Map<String, Object> values = new LinkedHashMap<>();
             values.put("horse_weight", h.weight);
             values.put("scratched", h.scratched);
             values.put("card_jockey", h.jockey);
             if (h.waku != null) values.put("waku", h.waku);
+            values.put("horse_number", h.number);
             values.put("weather", card.weather);
             values.put("ground", card.ground);
             values.put("card_updated_at", at);
             db.update("race_entries", idKey(id), values);
+        }
+        if (fixedInfo != null) {
+            Map<String, String> key = new LinkedHashMap<>();
+            key.put("kaisaibi", date);
+            key.put("kaisaijo", race.course);
+            key.put("race_no", String.valueOf(race.raceNo));
+            Map<String, Object> info = new LinkedHashMap<>();
+            info.put("race_info", fixedInfo);
+            db.update("race_entries", key, info);
         }
         race.cardUpdated = now;
     }
