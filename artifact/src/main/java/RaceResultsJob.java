@@ -68,9 +68,13 @@ public class RaceResultsJob {
             for (String code : codes) {
                 String course = Keibalab.COURSES.get(code);
                 List<Map<String, Object>> rows = new ArrayList<>();
+                List<Map<String, Object>> payouts = new ArrayList<>();
                 try {
                     for (int raceNo = 1; raceNo <= 12; raceNo++) {
-                        rows.addAll(scrapeRace(date, code, course, raceNo));
+                        Document doc = fetchRace(date, code, course, raceNo);
+                        if (doc == null) continue;
+                        rows.addAll(resultRows(doc, date, course, raceNo));
+                        payouts.addAll(payoutRows(doc, date, course, raceNo));
                     }
                 } catch (IOException e) {
                     // 一部のレースだけで入れ直すと残りのレースが消えるので、この開催は登録しない
@@ -91,6 +95,9 @@ public class RaceResultsJob {
                     db.delete("race_results", key);
                     db.insert("race_results", rows);
                     System.out.println(date + " " + course + ": " + rows.size() + "頭分の結果を登録しました");
+                    db.delete("race_payouts", key);
+                    db.insert("race_payouts", payouts);
+                    System.out.println(date + " " + course + ": 払い戻し " + payouts.size() + "件を登録しました");
                 } catch (IOException e) {
                     System.err.println(date + " " + course + ": 登録に失敗しました (" + e.getMessage() + ")");
                     failed.add(date + " " + course);
@@ -103,18 +110,39 @@ public class RaceResultsJob {
         }
     }
 
-    static List<Map<String, Object>> scrapeRace(String date, String code, String course, int raceNo) throws IOException {
-        List<Map<String, Object>> rows = new ArrayList<>();
-        Document doc;
+    /** レースのページ。12R まで無い開催などでページが無ければ null */
+    static Document fetchRace(String date, String code, String course, int raceNo) throws IOException {
         try {
-            doc = Keibalab.fetch(Keibalab.raceUrl(date, code, raceNo));
+            return Keibalab.fetch(Keibalab.raceUrl(date, code, raceNo));
         } catch (HttpStatusException e) {
-            // 12R まで無い開催などはページが無い
             System.err.println(date + " " + course + raceNo + "R: ページがありません (" + e.getStatusCode() + ")");
-            return rows;
+            return null;
         } catch (IOException e) {
             throw new IOException(course + raceNo + "R: " + e.getMessage(), e);
         }
+    }
+
+    /** 払い戻し（race_payouts の行）。確定前なら空。sort は表の並び順 */
+    static List<Map<String, Object>> payoutRows(Document doc, String date, String course, int raceNo) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        int sort = 0;
+        for (LivePages.Payout p : LivePages.payouts(doc)) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("kaisaibi", date);
+            row.put("kaisaijo", course);
+            row.put("race_no", raceNo);
+            row.put("bet_type", p.type);
+            row.put("numbers", p.numbers);
+            row.put("yen", p.yen);
+            row.put("sort", sort++);
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    /** 全着順（race_results の行）。結果がまだ出ていなければ空 */
+    static List<Map<String, Object>> resultRows(Document doc, String date, String course, int raceNo) {
+        List<Map<String, Object>> rows = new ArrayList<>();
         Element table = doc.selectFirst("table.resulttable");
         if (table == null) return rows;
 

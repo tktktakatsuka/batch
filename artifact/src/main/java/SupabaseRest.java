@@ -85,6 +85,28 @@ public class SupabaseRest {
                 "UPDATE " + table);
     }
 
+    /**
+     * 行を読む。query は PostgREST の書き方（例: "select=id,race_no&kaisaibi=eq.20261018"）。
+     * 1000 行ずつ読んで、全部をつなげて返す。dry-run でも読む（書き込まないだけ）
+     */
+    public com.google.gson.JsonArray select(String table, String query) throws IOException, InterruptedException {
+        com.google.gson.JsonArray all = new com.google.gson.JsonArray();
+        if (url.isEmpty() || apiKey.isEmpty()) return all;
+        for (int from = 0; ; from += 1000) {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(url + "/rest/v1/" + table + "?" + query))
+                    .header("apikey", apiKey)
+                    .header("Authorization", "Bearer " + bearer)
+                    .header("Range", from + "-" + (from + 999))
+                    .timeout(Duration.ofSeconds(60))
+                    .GET().build();
+            HttpResponse<String> res = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (res.statusCode() / 100 != 2) throw new IOException("SELECT " + table + " failed (" + res.statusCode() + "): " + res.body());
+            com.google.gson.JsonArray page = com.google.gson.JsonParser.parseString(res.body()).getAsJsonArray();
+            all.addAll(page);
+            if (page.size() < 1000) return all;
+        }
+    }
+
     /** 行をまとめて登録する */
     public void insert(String table, List<Map<String, Object>> rows) throws IOException, InterruptedException {
         if (rows.isEmpty()) return;
