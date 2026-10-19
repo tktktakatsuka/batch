@@ -20,6 +20,8 @@ import org.jsoup.nodes.Document;
 
 public class RaceTrendsMain {
     private static FirebaseRealtimeDBManager manager;
+    // 接続できずに取り込めなかった開催（日付 競馬場）
+    private static final java.util.List<String> FAILED = new java.util.ArrayList<>();
 
     public static void main(String[] args) throws NoSuchAlgorithmException, KeyManagementException {
         // DB接続
@@ -32,6 +34,10 @@ public class RaceTrendsMain {
 
             new RaceTrendsMain().scrapingAndInsert(manager, date, joName);
 
+        }
+        if (!FAILED.isEmpty()) {
+            System.err.println("[race_trends] 取り込めなかった開催（この日付で取り込み直してください）: " + String.join(", ", FAILED));
+            System.exit(1);
         }
     }
 
@@ -168,8 +174,13 @@ public class RaceTrendsMain {
                 }
             }
 
+        } catch (org.jsoup.HttpStatusException e) {
+            // その日に開催していない競馬場はページが無い（404）ので、失敗にはしない
+            System.out.println("[race_trends] " + date + " " + kaisaijo + ": 傾向のページがありません (" + e.getStatusCode() + ")");
         } catch (IOException | InterruptedException e) {
-            e.printStackTrace();
+            // 接続できなかった（keibalab に弾かれたなど）。最後にまとめて失敗として終える
+            System.err.println("[race_trends] " + date + " " + kaisaijo + ": 取得できませんでした (" + e.getMessage() + ")");
+            FAILED.add(date + " " + kaisaijo);
         }
 
     }
