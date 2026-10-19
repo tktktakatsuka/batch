@@ -2,9 +2,8 @@ name: 出馬表取込
 
 on:
   # 時刻は UTC（日本時間 = UTC + 9時間）
-  schedule:
-    - cron: "0 9 * * 4,5"    # 木・金 18:00 (JST) 出馬表確定・枠順確定のあと
-    - cron: "0 22 * * 5,6"   # 土・日 7:00 (JST) 当日朝の出走取消を反映
+  # 定時の自動実行は止めている。keibalab が GitHub からの接続を受け付けなくなったため（2026/10/17〜）、
+  # 取り込みは PC のタスクスケジューラ（KeibaBatch・KeibaLive）で動かしている
   # 手動実行（日付を指定して取り直したいとき）
   workflow_dispatch:
     inputs:
