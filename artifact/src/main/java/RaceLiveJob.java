@@ -61,6 +61,8 @@ public class RaceLiveJob {
         OffsetDateTime oddsUpdated;
         OffsetDateTime cardUpdated;
         boolean hasResult;
+        // 結果の行数（発走直後は上位5頭だけのことがある）
+        int resultRows;
         boolean hasPayouts;
 
         Race(String course, int raceNo) {
@@ -167,10 +169,11 @@ public class RaceLiveJob {
             race.cardUpdated = latest(race.cardUpdated, time(str(o, "card_updated_at")));
         }
         if (races.isEmpty()) return races;
-        for (JsonElement e : db.select("race_results", "select=kaisaijo,race_no&rank=eq.1&kaisaibi=eq." + date)) {
+        for (JsonElement e : db.select("race_results", "select=kaisaijo,race_no&kaisaibi=eq." + date)) {
             Race race = races.get(key(str(e.getAsJsonObject(), "kaisaijo"), e.getAsJsonObject().get("race_no").getAsInt()));
-            if (race != null) race.hasResult = true;
+            if (race != null) race.resultRows++;
         }
+        for (Race race : races.values()) race.hasResult = complete(race.resultRows, race.idsByName.size());
         for (JsonElement e : db.select("race_payouts", "select=kaisaijo,race_no&bet_type=eq." + enc("単勝") + "&kaisaibi=eq." + date)) {
             Race race = races.get(key(str(e.getAsJsonObject(), "kaisaijo"), e.getAsJsonObject().get("race_no").getAsInt()));
             if (race != null) race.hasPayouts = true;
@@ -255,6 +258,14 @@ public class RaceLiveJob {
         return true;
     }
 
+    /**
+     * 全着順がそろったか。keibalab は確定直後に上位5頭だけを出し、少したってから全頭を出すので、
+     * 出走頭数分（取消・除外の行も出る）か、5頭より多く出ていればそろったとみなす
+     */
+    static boolean complete(int resultRows, int runners) {
+        return resultRows > 0 && (resultRows >= runners || resultRows > 5);
+    }
+
     /** 全着順と払い戻しを入れ直す。結果がまだ出ていなければ false */
     private static boolean saveResult(SupabaseRest db, String date, String code, Race race)
             throws IOException, InterruptedException {
@@ -268,7 +279,7 @@ public class RaceLiveJob {
         key.put("race_no", String.valueOf(race.raceNo));
         db.delete("race_results", key);
         db.insert("race_results", rows);
-        race.hasResult = true;
+        race.hasResult = complete(rows.size(), race.idsByName.size());
         List<Map<String, Object>> payouts = RaceResultsJob.payoutRows(doc, date, race.course, race.raceNo);
         if (!payouts.isEmpty()) {
             db.delete("race_payouts", key);
